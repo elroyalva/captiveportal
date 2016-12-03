@@ -20,6 +20,7 @@ import android.app.Activity;
 import android.app.LoadedApk;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.CaptivePortal;
 import android.net.ConnectivityManager;
@@ -34,7 +35,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.SupplicantState;
 import android.os.Bundle;
-import android.provider.Settings;
+import android.os.Environment;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.TypedValue;
@@ -50,7 +51,9 @@ import android.webkit.JavascriptInterface;
 
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -65,9 +68,11 @@ import java.lang.InterruptedException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Random;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jsoup.Jsoup;
+
 import com.android.okhttp.OkHttpClient;
 //import com.android.mimecraft
 //import com.squareup.mimecraft.FormEncoding;
@@ -80,7 +85,10 @@ public class CaptivePortalLoginActivity extends Activity {
     private static final int SOCKET_TIMEOUT_MS = 10000;
     FormEncoding.Builder m = new FormEncoding.Builder();
     private OkHttpClient client = new OkHttpClient();
-    private enum Result { DISMISSED, UNWANTED, WANTED_AS_IS };
+
+    private enum Result {DISMISSED, UNWANTED, WANTED_AS_IS}
+
+    ;
 
     private URL mURL;
     private Network mNetwork;
@@ -139,11 +147,11 @@ public class CaptivePortalLoginActivity extends Activity {
         WebSettings webSettings = myWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         mWebViewClient = new MyWebViewClient(this, myWebView);
-       	myWebView.setWebViewClient(mWebViewClient);
+        myWebView.setWebViewClient(mWebViewClient);
         myWebView.setWebChromeClient(new MyWebChromeClient());
         // Start initial page load so WebView finishes loading proxy settings.
         // Actual load of mUrl is initiated by MyWebViewClient.
-        myWebView.loadData("","text/html", null);
+        myWebView.loadData("", "text/html", null);
     }
 
     // Find WebView's proxy BroadcastReceiver and prompt it to read proxy system properties.
@@ -278,7 +286,7 @@ public class CaptivePortalLoginActivity extends Activity {
         }
     }
 
-        public class MyWebViewClient extends WebViewClient {
+    public class MyWebViewClient extends WebViewClient {
         private static final String INTERNAL_ASSETS = "file:///android_asset/";
         private final String mBrowserBailOutToken = Long.toString(new Random().nextLong());
         // How many Android device-independent-pixels per scaled-pixel
@@ -286,27 +294,27 @@ public class CaptivePortalLoginActivity extends Activity {
         private float mDpPerSp;
         private int mPagesLoaded;
         private Context mContext = null;
-	private OkHttpClient client = new OkHttpClient();
-	private String mUrlHost = "";
-    	private boolean mPosted = false;
-	private WebView mWebView = null;
- 
-// If we haven't finished cleaning up the history, don't allow going back.
+        private OkHttpClient client = new OkHttpClient();
+        private String mUrlHost = "";
+        private boolean mPosted = false;
+        private WebView mWebView = null;
+
+        // If we haven't finished cleaning up the history, don't allow going back.
         public boolean allowBack() {
             return mPagesLoaded > 1;
         }
 
-	public MyWebViewClient(Context context, WebView webView) {
-		mContext = context;
-		mWebView = webView;
-		myJSInterface = new PostInterceptJavascriptInterface(this);
-		mWebView.addJavascriptInterface(myJSInterface, "Android");
+        public MyWebViewClient(Context context, WebView webView) {
+            mContext = context;
+            mWebView = webView;
+            myJSInterface = new PostInterceptJavascriptInterface(this);
+            mWebView.addJavascriptInterface(myJSInterface, "Android");
 
-       	 	mDpPerSp = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 1,
-                mContext.getResources().getDisplayMetrics()) /
-                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1,
-                mContext.getResources().getDisplayMetrics());
-	}
+            mDpPerSp = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 1,
+                    mContext.getResources().getDisplayMetrics()) /
+                    TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1,
+                            mContext.getResources().getDisplayMetrics());
+        }
 
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -358,13 +366,13 @@ public class CaptivePortalLoginActivity extends Activity {
             // Apply a scale factor to make things look right.
             dp *= 1.3;
             // Convert dp's to HTML size.
-            return dp((int)dp);
+            return dp((int) dp);
         }
 
         // A web page consisting of a large broken lock icon to indicate SSL failure.
         private final String SSL_ERROR_HTML = "<html><head><style>" +
                 "body { margin-left:" + dp(48) + "; margin-right:" + dp(48) + "; " +
-                        "margin-top:" + dp(96) + "; background-color:#fafafa; }" +
+                "margin-top:" + dp(96) + "; background-color:#fafafa; }" +
                 "img { width:" + dp(48) + "; height:" + dp(48) + "; }" +
                 "div.warn { font-size:" + sp(16) + "; margin-top:" + dp(16) + "; " +
                 "           opacity:0.87; line-height:1.28; }" +
@@ -391,140 +399,166 @@ public class CaptivePortalLoginActivity extends Activity {
         }
 
         @Override
-        public boolean shouldOverrideUrlLoading (WebView view, String url) {
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
             if (url.startsWith("tel:")) {
                 startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse(url)));
                 return true;
             }
-       	    mNextFormRequestContents = null;
+            mNextFormRequestContents = null;
             return false;
         }
 
-    	@Override
-    	public WebResourceResponse shouldInterceptRequest(final WebView view, final String url) {
-        	try {
-            		// Our implementation just parses the response and visualizes it. It does not properly handle
-            		// redirects or HTTP errors at the moment. It only serves as a demo for intercepting POST requests
-            		// as a starting point for supporting multiple types of HTTP requests in a full fletched browser
+        @Override
+        public WebResourceResponse shouldInterceptRequest(final WebView view, final String url) {
+            try {
+                // Our implementation just parses the response and visualizes it. It does not properly handle
+                // redirects or HTTP errors at the moment. It only serves as a demo for intercepting POST requests
+                // as a starting point for supporting multiple types of HTTP requests in a full fletched browser
 
-            		// Construct request
-			Log.d(TAG,"url: " + url);
-            		URL currUrl = new URL(url);
-            		String currUrlHost = currUrl.getHost();
+                // Construct request
+//			Log.d(TAG,"url: " + url);
+                URL currUrl = new URL(url);
+                String currUrlHost = currUrl.getHost();
+//                Log.d(TAG, currUrlHost);
+                if (mUrlHost != "" && mPosted == false) {
+                    Log.d(TAG, mUrlHost + " \t" + mPosted);
+                    currUrl = new URL(currUrl.getProtocol(), mUrlHost, currUrl.getPort(), currUrl.getFile());
+                }
+//                Log.d(TAG, currUrl.getHost() + "\t Before new conn");
+                HttpURLConnection conn = new OkUrlFactory(client).open(currUrl);
+                //HttpURLConnection conn = client.open(currUrl);
+//                Log.d(TAG, conn.getURL().getHost());
+                conn.setConnectTimeout(5000);
+                conn.setRequestMethod(isPOST() ? "POST" : "GET");
 
-            		if(mUrlHost != "" && mPosted == false){
-                		currUrl = new URL(currUrl.getProtocol(),mUrlHost,currUrl.getPort(),currUrl.getFile());
-            		}
+                // Write body
+                if (isPOST()) {
+                    OutputStream os = conn.getOutputStream();
+                    mUrlHost = "";
+                    Log.d(TAG, conn.getURL().getHost() + "\tIn write body");
+                    writeForm(os, conn.getURL().getHost());
+                    os.close();
+                    mPosted = true;
+                }
 
-			HttpURLConnection conn = new OkUrlFactory(client).open(new URL(url));
-            		//HttpURLConnection conn = client.open(currUrl);
+                // Read input
+                String charset = conn.getContentEncoding() != null ? conn.getContentEncoding() : Charset.defaultCharset().displayName();
+                String mime = conn.getContentType();
+                byte[] pageContents = IOUtils.readFully(conn.getInputStream());
+                String newUrlHost = conn.getURL().getHost();
+                if (newUrlHost != currUrlHost) {
+                    mPosted = false;
+                    mUrlHost = newUrlHost;
+                }
 
-            		conn.setRequestMethod(isPOST() ? "POST" : "GET");
+                // Perform JS injection
+                if (!isPOST() && mime.contains("text/html")) {
+                    Log.d(TAG, "Injecting JS code");
+                    pageContents = PostInterceptJavascriptInterface
+                            .enableIntercept(mContext, pageContents)
+                            .getBytes(charset);
+                }
 
-            		// Write body
-			if(isPOST()) {
-				OutputStream os = conn.getOutputStream();
-                		mUrlHost = "";	
-                    		writeForm(os, currUrl.toString());
-                		os.close();
-                		mPosted = true;
-                	}
+                // Convert the contents and return
+                InputStream isContents = new ByteArrayInputStream(pageContents);
 
-	            	// Read input
-       	 	    	String charset = conn.getContentEncoding() != null ? conn.getContentEncoding() : Charset.defaultCharset().displayName();
-            		String mime = conn.getContentType();
-            		byte[] pageContents = IOUtils.readFully(conn.getInputStream());
-            		String newUrlHost = conn.getURL().getHost();
-            		if(newUrlHost != currUrlHost) {
-                		mPosted = false;
-                		mUrlHost = newUrlHost;
-            		}
+                if (mime.contains("text/html")) {
+                    mime = "text/html";
+                }
+                return new WebResourceResponse(mime, charset,
+                        isContents);
+            } catch (FileNotFoundException e) {
+                Log.e(TAG, "Error 404: " + e.getMessage());
+                e.printStackTrace();
 
-            		// Perform JS injection
-            		if (!isPOST() && mime.contains("text/html")) {
-                	        Log.d(TAG, "Injecting JS code");
-                		pageContents = PostInterceptJavascriptInterface 
-                        		.enableIntercept(mContext, pageContents)
-                        		.getBytes(charset);
-            		}
+                return null;        // Let Android try handling things itself
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+                e.printStackTrace();
 
-            		// Convert the contents and return
-            		InputStream isContents = new ByteArrayInputStream(pageContents);
+                return null;        // Let Android try handling things itself
+            }
+        }
 
-            		if(mime.contains("text/html")) {
-                		mime = "text/html";
-            		}
-            		return new WebResourceResponse(mime, charset,
-                    		isContents);
-        	} catch (FileNotFoundException e) {
-            		Log.e(TAG, "Error 404: " + e.getMessage());
-            		e.printStackTrace();
+        private boolean isPOST() {
+            return (mNextFormRequestContents != null);
+        }
 
-            		return null;        // Let Android try handling things itself
-        	} catch (Exception e) {
-			Log.e(TAG, e.getMessage());
-            		e.printStackTrace();
+        protected void writeForm(OutputStream out, String baseUrl) {
+            try {
+                Log.d(TAG, "writing form");
+                JSONArray jsonPars = new JSONArray(mNextFormRequestContents);
 
-            		return null;        // Let Android try handling things itself
-        	}
-    	}
+                // We assume to be dealing with a very simple form here, so no file uploads or anything
+                // are possible for reasons of clarity
+                String submitUrl = baseUrl;
+                FormEncoding.Builder m = new FormEncoding.Builder();
+                for (int i = 0; i < jsonPars.length(); i++) {
+                    JSONObject jsonPar = jsonPars.getJSONObject(i);
+                    if (jsonPar.getString("name").equals("action")) {
+                        Log.d(TAG, jsonPar.getString("name") + ":+++" + jsonPar.getString("value"));
+                        String action = jsonPar.getString("value");
+                        if (action.charAt(0) == '\\') {
+                            submitUrl += action;
+                        } else {
+                            submitUrl = action;
+                        }
+                    } else {
+                        Log.d(TAG, jsonPar.getString("name") + ":" + jsonPar.getString("value"));
+                        m.add(jsonPar.getString("name"), jsonPar.getString("value"));
+                    }
+                }
 
-    	private boolean isPOST() {
-        	return (mNextFormRequestContents != null);
-    	}
+                //m.build().writeBodyTo(out);
+                Log.d(TAG, "Getting SSID");
 
-	protected void writeForm(OutputStream out, String baseUrl) {
-        	try {
-			Log.d(TAG, "writing form");
-        		JSONArray jsonPars = new JSONArray(mNextFormRequestContents);
+                String ssid = "temp";
+                WifiManager wifiManager = (WifiManager) mContext.getSystemService(mContext.WIFI_SERVICE);
+                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                if (wifiInfo.getSupplicantState() == SupplicantState.COMPLETED) {
+                    ssid = wifiInfo.getSSID();
+                }
 
-        		// We assume to be dealing with a very simple form here, so no file uploads or anything
-       			// are possible for reasons of clarity
-      	      		String submitUrl = baseUrl;
-			FormEncoding.Builder m = new FormEncoding.Builder();
-			for (int i = 0; i < jsonPars.length(); i++) {
-				JSONObject jsonPar = jsonPars.getJSONObject(i);
-				if(jsonPar.getString("name").equals("action")) {
-				    Log.d(TAG,jsonPar.getString("name") + ":+++" + jsonPar.getString("value"));
-				    String action = jsonPar.getString("value");
-				    if(action.charAt(0) == '\\') {
-				        submitUrl += action;
-				    }
-				    else {
-				        submitUrl = action;
-				    }
-				}
-				else {
-					Log.d(TAG,jsonPar.getString("name") + ":" + jsonPar.getString("value"));
-					m.add(jsonPar.getString("name"), jsonPar.getString("value"));
-				}
-			 }
+//                File rootSD = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+//                if(!rootSD.canWrite()) {
+//                    Log.d(TAG, "downloads cant write");
+//                    Toast.makeText(mContext, "cant write", Toast.LENGTH_SHORT).show();
+//                }
+//                else {
+//                    Log.d(TAG, "downloads path:" + rootSD.getAbsolutePath());
+//                    Toast.makeText(mContext, "write", Toast.LENGTH_SHORT).show();
+//                }
+//                File ssidFile = new File(rootSD,ssid);
+//                if(!ssidFile.exists()) {
+//                    Log.d(TAG,"file does not exist, creating one");
+//                    ssidFile.createNewFile();
+//                    if(!ssidFile.canWrite()) {
+//                        Log.d(TAG, "still no write");
+//                    }
+//                }
+//                FileOutputStream fileOutputStream = new FileOutputStream(rootSD);
 
-			 m.build().writeBodyTo(out);
-             Log.d(TAG, "Getting SSID");
+                FileOutputStream fileOutputStream = mContext.openFileOutput(ssid, mContext.MODE_PRIVATE);
+                //Log.d(TAG, "Writing to " + fileOutputStream.);
+                m.build().writeBodyTo(fileOutputStream);
+                Log.d(TAG, submitUrl + "\t Submit URL before writing to file");
+                fileOutputStream.write(("\n" + submitUrl).getBytes());
+                m.build().writeBodyTo(out);
+                fileOutputStream.close();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+                Log.e(TAG, "file not found");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
 
-			 String ssid = "temp";
-			 WifiManager wifiManager = (WifiManager)mContext.getSystemService(mContext.WIFI_SERVICE);
-			 WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-			 if(wifiInfo.getSupplicantState() == SupplicantState.COMPLETED) {
-                 ssid = wifiInfo.getSSID();
-             }
-			 FileOutputStream fileOutputStream = mContext.openFileOutput(ssid,mContext.MODE_PRIVATE);
-                 	 Log.d(TAG, "Writing to " + mContext.getFilesDir() + ssid);
-			 m.build().writeBodyTo(fileOutputStream);
-			 fileOutputStream.write(("\n" + submitUrl).getBytes());
-			 fileOutputStream.close();
-		} catch (Exception e) {
-			 throw new RuntimeException(e);
-		}
-    	}
+        private String mNextFormRequestContents = null;
 
-	private String mNextFormRequestContents = null;
-
-	public void nextMessageIsFormRequest(String json) {
-        	Log.d(TAG,"method invoked: " + json);
-		mNextFormRequestContents = json;
-    	}
+        public void nextMessageIsFormRequest(String json) {
+            Log.d(TAG, "method invoked: " + json);
+            mNextFormRequestContents = json;
+        }
 
 ////////////
     }
