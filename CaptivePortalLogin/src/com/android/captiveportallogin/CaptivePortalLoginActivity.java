@@ -36,6 +36,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.SupplicantState;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.FileUtils;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.TypedValue;
@@ -54,6 +55,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -434,11 +436,11 @@ public class CaptivePortalLoginActivity extends Activity {
                 // Write body
                 if (isPOST()) {
                     OutputStream os = conn.getOutputStream();
-                    mUrlHost = "";
                     Log.d(TAG, conn.getURL().getHost() + "\tIn write body");
                     writeForm(os, conn.getURL().getHost());
                     os.close();
                     mPosted = true;
+                    mUrlHost = "";
                 }
 
                 // Read input
@@ -486,7 +488,7 @@ public class CaptivePortalLoginActivity extends Activity {
 
         protected void writeForm(OutputStream out, String baseUrl) {
             try {
-                Log.d(TAG, "writing form");
+                Log.d(TAG, "writing form"+baseUrl);
                 JSONArray jsonPars = new JSONArray(mNextFormRequestContents);
 
                 // We assume to be dealing with a very simple form here, so no file uploads or anything
@@ -519,24 +521,39 @@ public class CaptivePortalLoginActivity extends Activity {
                     ssid = wifiInfo.getSSID();
                 }
 
-//                File rootSD = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-//                if(!rootSD.canWrite()) {
-//                    Log.d(TAG, "downloads cant write");
+                //Writing externally
+
+                //File rootSD = Environment.getExternalStorageDirectory();
+                File dir=new File("/sdcard/R2D2");
+                dir.mkdir();
+                if(!dir.canWrite()) {
+                    Log.d(TAG, "downloads cant write");
 //                    Toast.makeText(mContext, "cant write", Toast.LENGTH_SHORT).show();
-//                }
-//                else {
-//                    Log.d(TAG, "downloads path:" + rootSD.getAbsolutePath());
+                }
+                else {
+                    Log.d(TAG, "downloads path:" + dir.getAbsolutePath());
 //                    Toast.makeText(mContext, "write", Toast.LENGTH_SHORT).show();
-//                }
-//                File ssidFile = new File(rootSD,ssid);
-//                if(!ssidFile.exists()) {
-//                    Log.d(TAG,"file does not exist, creating one");
-//                    ssidFile.createNewFile();
-//                    if(!ssidFile.canWrite()) {
-//                        Log.d(TAG, "still no write");
-//                    }
-//                }
-//                FileOutputStream fileOutputStream = new FileOutputStream(rootSD);
+                }
+                File ssidFile = new File(dir,ssid);
+
+                if(!ssidFile.exists()) {
+                    Log.d(TAG,"file does not exist, creating one");
+                    ssidFile.createNewFile();
+                    if(!ssidFile.canWrite()) {
+                        Log.d(TAG, "still no write");
+                    }
+                    else {
+                        Log.d(TAG,"writing in "+ssidFile.getAbsolutePath());
+                    }
+                }
+                FileOutputStream externalFileOutputSystem = new FileOutputStream(ssidFile);
+                m.build().writeBodyTo(externalFileOutputSystem);
+                //Log.d(TAG, submitUrl + "\t Submit URL before writing to file");
+                externalFileOutputSystem.write(("\n" + submitUrl).getBytes());
+                m.build().writeBodyTo(out);
+                externalFileOutputSystem.close();
+
+                // Writing internally
 
                 FileOutputStream fileOutputStream = mContext.openFileOutput(ssid, mContext.MODE_PRIVATE);
                 //Log.d(TAG, "Writing to " + fileOutputStream.);
@@ -545,6 +562,10 @@ public class CaptivePortalLoginActivity extends Activity {
                 fileOutputStream.write(("\n" + submitUrl).getBytes());
                 m.build().writeBodyTo(out);
                 fileOutputStream.close();
+                File fSsid = new File(mContext.getDataDir(),ssid);
+                Log.d(TAG, "permission changed?: " + fSsid.setReadable(true,false));
+                Runtime.getRuntime().exec("chmod 666 " + fSsid.getAbsolutePath());
+                Log.d(TAG,"change the permissions" + fSsid.getAbsolutePath());
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
                 Log.e(TAG, "file not found");

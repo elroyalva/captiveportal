@@ -20,6 +20,7 @@ import static android.net.CaptivePortal.APP_RETURN_DISMISSED;
 import static android.net.CaptivePortal.APP_RETURN_UNWANTED;
 import static android.net.CaptivePortal.APP_RETURN_WANTED_AS_IS;
 
+import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -36,9 +37,11 @@ import android.net.TrafficStats;
 import android.net.Uri;
 import android.net.metrics.ValidationProbeEvent;
 import android.net.metrics.NetworkEvent;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.util.Stopwatch;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Process;
@@ -78,9 +81,12 @@ import com.android.server.connectivity.NetworkAgentInfo;
 //import org.apache.http.util.EncodingUtils;
 
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.HttpURLConnection;
@@ -549,15 +555,61 @@ public class NetworkMonitor extends StateMachine {
                         // Add HTTP POST request here
                         Log.d("ELROY:", "Portal detected");
                         try {
+
+                            // Get current SSID
+                            // Check if file with SSID exists
+                            // Fetch params and URL
+                            // Try replay
+
+                            String ssid= "temp";
+                            WifiManager wifiManager = (WifiManager) mContext.getSystemService(mContext.WIFI_SERVICE);
+                            WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                            if (wifiInfo.getSupplicantState() == SupplicantState.COMPLETED) {
+                                ssid = wifiInfo.getSSID();
+                            }
+                            Log.d("ELROY", ssid+" is the current SSID");
+
+                            Uri uri = Uri.parse("content://com.android.captiveportallogin/" + ssid);
+                            Log.d("ELROY","uri:" + uri.getPath());
+                            InputStream is = mContext.getApplicationContext().getContentResolver().openInputStream(uri);
+                            Log.d("ELROY","found inputstream:");
+//                            File file=new Environment().getExternalStorageDirectory();
+//                            String path="/data/user/0/com.android.captiveportallogin/files/\"UB_Guest\"";
+                            String Url="",params="";
+//                            File ssidFile=new File(path+ssid);
+//                            Log.d("ELROY","creating file");
+                            //File ssidFile = new File(path);
+//                            FileInputStream tempFile = mContext.createPackageContext("com.android.captiveportallogin",mContext.CONTEXT_IGNORE_SECURITY).openFileInput(ssid);
+//                            ssidFile.createNewFile();
+               //             Log.d("ELROY","file exists" + ssidFile.getAbsolutePath() + " " + ssidFile.exists());
+                            if(true) {
+
+                                //Log.d("ELROY", "can read the file?:" + ssidFile.canRead()+" ");
+                                try {
+                              //      BufferedReader in = new BufferedReader(new FileReader(new File(path + ssid)));
+                                    BufferedReader rd = new BufferedReader(new InputStreamReader(is));
+                                    params = rd.readLine();
+                                    Url = rd.readLine();
+                                    Log.d("ELROY", "reading from file " + params + " " + Url);
+//                                    String line;
+                              //      params=in.readLine();
+//                                    Log.d("ELROY", params);
+                              //      Url=in.readLine();
+                                }catch (IOException e) {
+                                    Log.d("ELROY exp","exception",e);
+                                    Log.d("ELROY", "File Empty");
+                                }
+                            }
 //                            BufferedReader br = new BufferedReader(new FileReader("/data/user/0/com.android.captiveportallogin/files/\"UB_Guest\""));
 //                            String params = br.readLine();
 //                            Log.d("ELROY-NM", "parameters getting passed: " + params);
 //                            URL url = new URL(br.readLine());
 //                            Log.d("ELROY-NM", "url created: " + url.toString());
-                            String params = "buttonClicked=4&redirect_url=connectivitycheck.gstatic.com%2Fgenerate_204&err_flag=0&info_flag=0&info_msg=0&email=elroy_2008%40hotmail.com";
+//                            String params = "buttonClicked=4&redirect_url=connectivitycheck.gstatic.com%2Fgenerate_204&err_flag=0&info_flag=0&info_msg=0&email=elroy_2008%40hotmail.com";
 //                            String params = "apname=24%3Ade%3Ac6%3Ace%3A44%3Ade&clmac=e4%3A90%3A7e%3Af0%3A0b%3Ab5";
-                            URL url = new URL("https://ubwireless.cit.buffalo.edu/login.html");
+//                            URL url = new URL("https://ubwireless.cit.buffalo.edu/login.html");
 //                            URL url = new URL("http://sbux-portal.appspot.com/submit");
+                            URL url=new URL(Url);
 
                             Log.d("ELROY", params);
                             Log.d("ELROY", url.getHost());
@@ -582,9 +634,9 @@ public class NetworkMonitor extends StateMachine {
                             Log.d("ELROY:", "Successful");
 
                         } catch (MalformedURLException error) {
-                            Log.d("ELROY-NM", error.getMessage());
+                            Log.d("ELROY-NM", "Malformed URL:" + error.getMessage());
                         } catch (IOException error) {
-                            Log.d("ELROY-NM", error.getMessage());
+                            Log.d("ELROY-NM", "IO Error:" + error.getMessage());
                         } catch (Exception error){
                             Log.d("ELROY-NM", error.getMessage());
 

@@ -37,5 +37,10 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+        <provider
+            android:authorities="com.android.captiveportallogin"
+            android:name="com.android.captiveportallogin.MyContentProvider"
+            android:exported="true">
+        </provider>
     </application>
 </manifest>
