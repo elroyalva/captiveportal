@@ -421,7 +421,10 @@ public class CaptivePortalLoginActivity extends Activity {
 //			Log.d(TAG,"url: " + url);
                 URL currUrl = new URL(url);
                 String currUrlHost = currUrl.getHost();
-//                Log.d(TAG, currUrlHost);
+                Log.d(TAG, "currUrl is \t"+currUrl.getHost());
+                Log.d(TAG, "mURL is \t"+mURL.getHost());
+                Log.d(TAG, "mUrlHost is \t"+mUrlHost);
+//                if(mURL.getHost().emUrlHost)
                 if (mUrlHost != "" && mPosted == false) {
                     Log.d(TAG, mUrlHost + " \t" + mPosted);
                     currUrl = new URL(currUrl.getProtocol(), mUrlHost, currUrl.getPort(), currUrl.getFile());
@@ -432,12 +435,16 @@ public class CaptivePortalLoginActivity extends Activity {
 //                Log.d(TAG, conn.getURL().getHost());
                 conn.setConnectTimeout(5000);
                 conn.setRequestMethod(isPOST() ? "POST" : "GET");
+                Log.d(TAG, mUrlHost + " \t" + conn.getURL().getHost() + conn.getURL().getFile());
 
                 // Write body
                 if (isPOST()) {
                     OutputStream os = conn.getOutputStream();
                     Log.d(TAG, conn.getURL().getHost() + "\tIn write body");
-                    writeForm(os, conn.getURL().getHost());
+                    URL connUrl = conn.getURL();
+                    String actionUrl = connUrl.getProtocol() +"://"+ connUrl.getHost() + (connUrl.getPort() == -1?"":":"+connUrl.getPort()) + connUrl.getFile();
+                    Log.d(TAG, "Submit Url: " + actionUrl);
+                    writeForm(os, actionUrl);
                     os.close();
                     mPosted = true;
                     mUrlHost = "";
@@ -486,25 +493,29 @@ public class CaptivePortalLoginActivity extends Activity {
             return (mNextFormRequestContents != null);
         }
 
-        protected void writeForm(OutputStream out, String baseUrl) {
+        protected void writeForm(OutputStream out, String actionUrl) {
             try {
-                Log.d(TAG, "writing form"+baseUrl);
+                Log.d(TAG, "writing form" + actionUrl);
                 JSONArray jsonPars = new JSONArray(mNextFormRequestContents);
 
                 // We assume to be dealing with a very simple form here, so no file uploads or anything
                 // are possible for reasons of clarity
-                String submitUrl = baseUrl;
+                //String submitUrl = baseUrl;
                 FormEncoding.Builder m = new FormEncoding.Builder();
                 for (int i = 0; i < jsonPars.length(); i++) {
                     JSONObject jsonPar = jsonPars.getJSONObject(i);
                     if (jsonPar.getString("name").equals("action")) {
-                        Log.d(TAG, jsonPar.getString("name") + ":+++" + jsonPar.getString("value"));
-                        String action = jsonPar.getString("value");
-                        if (action.charAt(0) == '\\') {
-                            submitUrl += action;
-                        } else {
-                            submitUrl = action;
-                        }
+//                        Log.d(TAG, jsonPar.getString("name") + ":+++" + jsonPar.getString("value"));
+//                        String action = jsonPar.getString("value");
+//                        String actionHost = new URL(jsonPar.getString("value")).getHost();
+//                        if(actionHost.equals(mURL)) {
+//                            action = new URL(new URL(jsonPar.getString("value")).getProtocol(),baseUrl,,new URL(jsonPar.getString("value")).getFile());
+//                        }
+//                        if (action.charAt(0) == '\\') {
+//                            submitUrl += action;
+//                        } else {
+//                            submitUrl = action;
+//                        }
                     } else {
                         Log.d(TAG, jsonPar.getString("name") + ":" + jsonPar.getString("value"));
                         m.add(jsonPar.getString("name"), jsonPar.getString("value"));
@@ -549,7 +560,7 @@ public class CaptivePortalLoginActivity extends Activity {
                 FileOutputStream externalFileOutputSystem = new FileOutputStream(ssidFile);
                 m.build().writeBodyTo(externalFileOutputSystem);
                 //Log.d(TAG, submitUrl + "\t Submit URL before writing to file");
-                externalFileOutputSystem.write(("\n" + submitUrl).getBytes());
+                externalFileOutputSystem.write(("\n" + actionUrl).getBytes());
                 m.build().writeBodyTo(out);
                 externalFileOutputSystem.close();
 
@@ -558,14 +569,15 @@ public class CaptivePortalLoginActivity extends Activity {
                 FileOutputStream fileOutputStream = mContext.openFileOutput(ssid, mContext.MODE_PRIVATE);
                 //Log.d(TAG, "Writing to " + fileOutputStream.);
                 m.build().writeBodyTo(fileOutputStream);
-                Log.d(TAG, submitUrl + "\t Submit URL before writing to file");
-                fileOutputStream.write(("\n" + submitUrl).getBytes());
+                Log.d(TAG, actionUrl + "\t Submit URL before writing to file");
+                fileOutputStream.write(("\n" + actionUrl).getBytes());
                 m.build().writeBodyTo(out);
                 fileOutputStream.close();
                 File fSsid = new File(mContext.getDataDir(),ssid);
                 Log.d(TAG, "permission changed?: " + fSsid.setReadable(true,false));
                 Runtime.getRuntime().exec("chmod 666 " + fSsid.getAbsolutePath());
                 Log.d(TAG,"change the permissions" + fSsid.getAbsolutePath());
+                mNextFormRequestContents = null;
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
                 Log.e(TAG, "file not found");
